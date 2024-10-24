@@ -40,7 +40,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::process::exit(1);
     }
 
-    let Ok(result) = Command::new("swaymsg").args(["-t", "get_outputs"]).output() else {
+    let Ok(result) = Command::new("swaymsg").args(["-t", "get_outputs", "--raw"]).output() else {
         eprintln!("Failed to run 'swaymsg -t get_outputs', do you have sway installed?");
         std::process::exit(1);
     };

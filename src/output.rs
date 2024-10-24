@@ -16,7 +16,7 @@ impl fmt::Display for Profile {
         }
         writeln!(f)?;
         for output in self.outputs.iter() {
-            writeln!(f, "    exec swaymsg output \"{}\" subpixel {}", output.exact_name(), if output.subpixel_hinting != "unknown" { &output.subpixel_hinting } else { "none" })?;
+            writeln!(f, "    exec swaymsg output \"{}\" subpixel {}", output.display_name(), if output.subpixel_hinting != "unknown" { &output.subpixel_hinting } else { "none" })?;
         }
         write!(f, "}}")
     }
@@ -24,7 +24,7 @@ impl fmt::Display for Profile {
 
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "output \"{}\" {{", self.exact_name())?;
+        writeln!(f, "output \"{}\" {{", self.display_name())?;
         writeln!(f, "    {}", if self.active { "enable" } else { "disable" })?;
         if self.active {
             writeln!(f, "    mode {}x{}@{:.3}Hz", self.current_mode.width, self.current_mode.height, self.current_mode.refresh as f64 / 1000.0)?;
@@ -38,8 +38,22 @@ impl fmt::Display for Output {
 }
 
 impl Output {
-    fn exact_name(&self) -> String {
+    fn is_embedded(&self) -> bool {
+        self.name.starts_with("eDP")
+    }
+
+    fn stable_name(&self) -> String {
         format!("{} {} {}", self.make, self.model, self.serial)
+    }
+
+    fn display_name(&self) -> String {
+        // eDP-X denotes an embedded display, and those identifiers are typically more convenient
+        // to use than the make/model/serial combination.
+        if self.is_embedded() {
+            self.name.clone()
+        } else {
+            self.stable_name()
+        }
     }
 }
 
