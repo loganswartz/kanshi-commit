@@ -11,29 +11,39 @@ pub struct Profile {
 impl fmt::Display for Profile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "profile {} {{", self.name)?;
+
         for output in self.outputs.iter() {
             writeln!(f, "{}", indent(&output.to_string(), 1))?;
         }
         writeln!(f)?;
         for output in self.outputs.iter() {
-            writeln!(f, "    exec swaymsg output \"{}\" subpixel {}", output.display_name(), if output.subpixel_hinting != "unknown" { &output.subpixel_hinting } else { "none" })?;
+            let (key, value) = output.subpixel_hinting();
+            writeln!(f, r#"    exec swaymsg output "'{}'" {} {}"#, output.display_name(), key, value)?;
         }
+
         write!(f, "}}")
     }
 }
 
 impl fmt::Display for Output {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "output \"{}\" {{", self.display_name())?;
-        writeln!(f, "    {}", if self.active { "enable" } else { "disable" })?;
+        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })?;
+
         if self.active {
-            writeln!(f, "    mode {}x{}@{:.3}Hz", self.current_mode.width, self.current_mode.height, self.current_mode.refresh as f64 / 1000.0)?;
-            writeln!(f, "    position {},{}", self.rect.x, self.rect.y)?;
-            writeln!(f, "    scale {}", self.scale)?;
-            writeln!(f, "    transform {}", self.transform)?;
-            writeln!(f, "    adaptive_sync {}", if self.adaptive_sync_status == "enabled" { "on" } else { "off" })?;
+            let params = vec![
+                self.mode(),
+                self.position(),
+                self.scale(),
+                self.transform(),
+                self.adaptive_sync(),
+            ];
+
+            for (key, value) in params.iter() {
+                write!(f, " {} {}", key, value)?;
+            }
         }
-        writeln!(f, "}}")
+
+        writeln!(f)
     }
 }
 
@@ -54,6 +64,30 @@ impl Output {
         } else {
             self.stable_name()
         }
+    }
+
+    fn mode(&self) -> (String, String) {
+        (String::from("mode"), format!("{}x{}@{:.3}Hz", self.current_mode.width, self.current_mode.height, self.current_mode.refresh as f64 / 1000.0))
+    }
+
+    fn position(&self) -> (String, String) {
+        (String::from("position"), format!("{},{}", self.rect.x, self.rect.y))
+    }
+
+    fn scale(&self) -> (String, String) {
+        (String::from("scale"), self.scale.to_string())
+    }
+
+    fn transform(&self) -> (String, String) {
+        (String::from("transform"), self.transform.clone())
+    }
+
+    fn adaptive_sync(&self) -> (String, String) {
+        (String::from("adaptive_sync"), String::from(if self.adaptive_sync_status == "enabled" { "on" } else { "off" }))
+    }
+
+    fn subpixel_hinting(&self) -> (String, String) {
+        (String::from("subpixel"), if self.subpixel_hinting != "unknown" { self.subpixel_hinting.clone() } else { String::from("none") })
     }
 }
 
