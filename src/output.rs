@@ -17,15 +17,17 @@ impl fmt::Display for Profile {
         }
         writeln!(f)?;
         for output in self.outputs.iter() {
-            let (key, value) = output.subpixel_hinting();
-            writeln!(f, r#"    exec swaymsg output "'{}'" {} {}"#, output.display_name(), key, value)?;
+            let Output::Active(active) = output else { continue };
+
+            let (key, value) = active.subpixel_hinting();
+            writeln!(f, r#"    exec swaymsg output "'{}'" {} {}"#, active.display_name(), key, value)?;
         }
 
         write!(f, "}}")
     }
 }
 
-impl fmt::Display for Output {
+impl fmt::Display for ActiveOutput {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })?;
 
@@ -47,25 +49,50 @@ impl fmt::Display for Output {
     }
 }
 
-impl Output {
+trait NamedDisplay {
+    /// An unstable identifier for the output that may be more readable / condensed.
+    fn unstable_identifier(&self) -> String;
+    /// A stable identifier for the output.
+    fn stable_identifier(&self) -> String;
+
+    /// Is this output an embedded display?
     fn is_embedded(&self) -> bool {
-        self.name.starts_with("eDP")
+        self.unstable_identifier().starts_with("eDP")
     }
 
-    fn stable_name(&self) -> String {
-        format!("{} {} {}", self.make, self.model, self.serial)
-    }
-
+    /// The display name to use in when configuring the output.
     fn display_name(&self) -> String {
         // eDP-X denotes an embedded display, and those identifiers are typically more convenient
         // to use than the make/model/serial combination.
         if self.is_embedded() {
-            self.name.clone()
+            self.unstable_identifier()
         } else {
-            self.stable_name()
+            self.stable_identifier()
         }
     }
+}
 
+impl NamedDisplay for ActiveOutput {
+    fn unstable_identifier(&self) -> String {
+        self.name.clone()
+    }
+
+    fn stable_identifier(&self) -> String {
+        format!("{} {} {}", self.make, self.model, self.serial)
+    }
+}
+
+impl NamedDisplay for InactiveOutput {
+    fn unstable_identifier(&self) -> String {
+        self.name.clone()
+    }
+
+    fn stable_identifier(&self) -> String {
+        format!("{} {} {}", self.make, self.model, self.serial)
+    }
+}
+
+impl ActiveOutput {
     fn mode(&self) -> (String, String) {
         (String::from("mode"), format!("{}x{}@{:.3}Hz", self.current_mode.width, self.current_mode.height, self.current_mode.refresh as f64 / 1000.0))
     }
@@ -92,8 +119,30 @@ impl Output {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Output {
+    Active(ActiveOutput),
+    Inactive(InactiveOutput),
+}
+
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Output::Active(active) => write!(f, "{}", active),
+            Output::Inactive(inactive) => write!(f, "{}", inactive),
+        }
+    }
+}
+
+impl fmt::Display for InactiveOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })
+    }
+}
+
+#[derive(Debug, Deserialize)]
 #[allow(unused)]
-pub struct Output {
+pub struct ActiveOutput {
     pub id: usize,
     pub r#type: String,
     pub orientation: String,
@@ -116,6 +165,20 @@ pub struct Output {
 
 #[derive(Debug, Deserialize)]
 #[allow(unused)]
+pub struct InactiveOutput {
+    pub name: String,
+    pub r#type: String,
+    pub primary: bool,
+    pub make: String,
+    pub model: String,
+    pub serial: String,
+    pub modes: Vec<OutputMode>,
+    pub active: bool,
+    pub rect: OutputRect,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(unused)]
 pub struct OutputRect {
     pub x: isize,
     pub y: isize,
@@ -129,5 +192,5 @@ pub struct OutputMode {
     pub width: usize,
     pub height: usize,
     pub refresh: usize,
-    pub picture_aspect_ratio: String,
+    pub picture_aspect_ratio: Option<String>,
 }

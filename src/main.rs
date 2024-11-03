@@ -72,9 +72,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let configuration = get_configuration(args.from_file.as_deref())?;
-    let Ok(outputs) = serde_json::from_str::<Vec<Output>>(&configuration) else {
-        eprintln!("Failed to parse the configuration.");
-        std::process::exit(1);
+    let outputs = match serde_json::from_str::<Vec<Output>>(&configuration) {
+        Ok(outputs) => outputs,
+        Err(e) => {
+            eprintln!("Failed to parse the configuration: {}", e);
+            std::process::exit(1);
+        }
     };
 
     let profile = Profile {
