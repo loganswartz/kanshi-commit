@@ -1,4 +1,5 @@
-use std::{io::Read, path::PathBuf, process::Command};
+use core::fmt;
+use std::{io::Read, ops::Deref, path::PathBuf, process::Command};
 
 use clap::Parser;
 
@@ -6,6 +7,7 @@ mod output;
 mod utils;
 
 use output::{Output, Profile};
+use serde::Deserialize;
 
 fn load_configuration_from_ipc() -> Result<String, Box<dyn std::error::Error>> {
     let Ok(output) = Command::new("swaymsg").args(["-t", "get_outputs", "--raw"]).output() else {
@@ -52,11 +54,15 @@ struct Args {
     #[clap(long, default_value = ".conf")]
     suffix: String,
 
-    /// The directory where the profile should be saved [default: $XDG_CONFIG_HOME/kanshi/config.d].
-    #[clap(short, long)]
-    config_dir: Option<PathBuf>,
+    /// The directory where the profile should be saved.
+    #[clap(short, long, default_value_t = ClapPath(dirs::config_dir().map(|v| v.join("kanshi/config.d"))))]
+    config_dir: ClapPath,
 
-    /// The input file to read the current display configuration from.
+    /// The input file to read the current display configuration from. The file should be valid
+    /// JSON created from `swaymsg -t get_outputs --raw`.
+    ///
+    /// If not specified, the configuration is fetched automatically from the Sway IPC. If the
+    /// input file is `-`, the configuration is instead read from stdin.
     #[clap(long)]
     from_file: Option<String>,
 
@@ -67,20 +73,44 @@ struct Args {
     location: bool,
 }
 
+/// A wrapper around a `Option<PathBuf>` that implements `From<&str>` and `Display` so that Clap is
+/// happy.
+#[derive(Debug, Clone, Deserialize)]
+struct ClapPath(Option<PathBuf>);
+
+impl Deref for ClapPath {
+    type Target = Option<PathBuf>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<&str> for ClapPath {
+    fn from(s: &str) -> Self {
+        ClapPath(Some(PathBuf::from(s)))
+    }
+}
+
+impl fmt::Display for ClapPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.0 {
+            Some(path) => write!(f, "{}", path.display()),
+            None => write!(f, "None"),
+        }
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     if args.force && !args.save {
         eprintln!("The --force flag cannot be used without --save.");
         std::process::exit(1);
-    } else if args.config_dir.is_some() && !args.save {
-        eprintln!("The --config-dir flag cannot be used without --save.");
-        std::process::exit(1);
     }
 
-    let default_config_dir = dirs::config_dir().map(|v| v.join("kanshi/config.d"));
-    let config_dir = args.config_dir.or(default_config_dir).expect("could not find a valid configuration directory");
     let filename = format!("{}{}", &args.profile, args.suffix);
+    let config_dir = args.config_dir.as_ref().expect("a config directory was able to be determined");
     let profile_path = config_dir.join(&filename);
 
     if args.location {
@@ -109,7 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if !config_dir.exists() {
-        std::fs::create_dir_all(&config_dir)?;
+        std::fs::create_dir_all(config_dir)?;
     }
 
     if profile_path.exists() && !args.force {
