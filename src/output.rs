@@ -3,52 +3,6 @@ use serde::Deserialize;
 
 use crate::utils::indent;
 
-pub struct Profile {
-    pub name: String,
-    pub outputs: Vec<Output>,
-}
-
-impl fmt::Display for Profile {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "profile {} {{", self.name)?;
-
-        for output in self.outputs.iter() {
-            writeln!(f, "{}", indent(&output.to_string(), 1))?;
-        }
-        writeln!(f)?;
-        for output in self.outputs.iter() {
-            let Output::Active(active) = output else { continue };
-
-            let (key, value) = active.subpixel_hinting();
-            writeln!(f, r#"    exec swaymsg output "'{}'" {} {}"#, active.display_name(), key, value)?;
-        }
-
-        write!(f, "}}")
-    }
-}
-
-impl fmt::Display for ActiveOutput {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })?;
-
-        if self.active {
-            let params = vec![
-                self.mode(),
-                self.position(),
-                self.scale(),
-                self.transform(),
-                self.adaptive_sync(),
-            ];
-
-            for (key, value) in params.iter() {
-                write!(f, " {} {}", key, value)?;
-            }
-        }
-
-        writeln!(f)
-    }
-}
-
 trait NamedDisplay {
     /// An unstable identifier for the output that may be more readable / condensed.
     fn unstable_identifier(&self) -> String;
@@ -72,24 +26,79 @@ trait NamedDisplay {
     }
 }
 
-impl NamedDisplay for ActiveOutput {
-    fn unstable_identifier(&self) -> String {
-        self.name.clone()
+pub struct Profile {
+    pub name: String,
+    pub outputs: Vec<Output>,
+}
+
+impl Profile {
+    pub fn new(name: String, outputs: Vec<Output>) -> Self {
+        Self { name, outputs }
     }
 
-    fn stable_identifier(&self) -> String {
-        format!("{} {} {}", self.make, self.model, self.serial)
+    /// Create a new `Profile` from a JSON string.
+    pub fn from_json(name: String, json: &str) -> Result<Self, serde_json::Error> {
+        let outputs: Vec<Output> = serde_json::from_str(json)?;
+        Ok(Self::new(name, outputs))
     }
 }
 
-impl NamedDisplay for InactiveOutput {
-    fn unstable_identifier(&self) -> String {
-        self.name.clone()
-    }
+impl fmt::Display for Profile {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "profile {} {{", self.name)?;
 
-    fn stable_identifier(&self) -> String {
-        format!("{} {} {}", self.make, self.model, self.serial)
+        for output in self.outputs.iter() {
+            writeln!(f, "{}", indent(&output.to_string(), 1))?;
+        }
+        writeln!(f)?;
+        for output in self.outputs.iter() {
+            let Output::Active(active) = output else { continue };
+
+            let (key, value) = active.subpixel_hinting();
+            writeln!(f, r#"    exec swaymsg output "'{}'" {} {}"#, active.display_name(), key, value)?;
+        }
+
+        write!(f, "}}")
     }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Output {
+    Active(ActiveOutput),
+    Inactive(InactiveOutput),
+}
+
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Output::Active(active) => write!(f, "{}", active),
+            Output::Inactive(inactive) => write!(f, "{}", inactive),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(unused)]
+pub struct ActiveOutput {
+    pub id: usize,
+    pub r#type: String,
+    pub orientation: String,
+    pub layout: String,
+    pub rect: OutputRect,
+    pub name: String,
+    pub primary: bool,
+    pub make: String,
+    pub model: String,
+    pub serial: String,
+    pub modes: Vec<OutputMode>,
+    pub active: bool,
+    pub scale: f32,
+    pub scale_filter: String,
+    pub transform: String,
+    pub adaptive_sync_status: String,
+    pub current_mode: OutputMode,
+    pub subpixel_hinting: String,
 }
 
 impl ActiveOutput {
@@ -118,49 +127,36 @@ impl ActiveOutput {
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-pub enum Output {
-    Active(ActiveOutput),
-    Inactive(InactiveOutput),
-}
-
-impl fmt::Display for Output {
+impl fmt::Display for ActiveOutput {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Output::Active(active) => write!(f, "{}", active),
-            Output::Inactive(inactive) => write!(f, "{}", inactive),
+        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })?;
+
+        if self.active {
+            let params = vec![
+                self.mode(),
+                self.position(),
+                self.scale(),
+                self.transform(),
+                self.adaptive_sync(),
+            ];
+
+            for (key, value) in params.iter() {
+                write!(f, " {} {}", key, value)?;
+            }
         }
+
+        writeln!(f)
     }
 }
 
-impl fmt::Display for InactiveOutput {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })
+impl NamedDisplay for ActiveOutput {
+    fn unstable_identifier(&self) -> String {
+        self.name.clone()
     }
-}
 
-#[derive(Debug, Deserialize)]
-#[allow(unused)]
-pub struct ActiveOutput {
-    pub id: usize,
-    pub r#type: String,
-    pub orientation: String,
-    pub layout: String,
-    pub rect: OutputRect,
-    pub name: String,
-    pub primary: bool,
-    pub make: String,
-    pub model: String,
-    pub serial: String,
-    pub modes: Vec<OutputMode>,
-    pub active: bool,
-    pub scale: f32,
-    pub scale_filter: String,
-    pub transform: String,
-    pub adaptive_sync_status: String,
-    pub current_mode: OutputMode,
-    pub subpixel_hinting: String,
+    fn stable_identifier(&self) -> String {
+        format!("{} {} {}", self.make, self.model, self.serial)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,6 +171,22 @@ pub struct InactiveOutput {
     pub modes: Vec<OutputMode>,
     pub active: bool,
     pub rect: OutputRect,
+}
+
+impl fmt::Display for InactiveOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, r#"output "{}" {}"#, self.display_name(), if self.active { "enable" } else { "disable" })
+    }
+}
+
+impl NamedDisplay for InactiveOutput {
+    fn unstable_identifier(&self) -> String {
+        self.name.clone()
+    }
+
+    fn stable_identifier(&self) -> String {
+        format!("{} {} {}", self.make, self.model, self.serial)
+    }
 }
 
 #[derive(Debug, Deserialize)]
