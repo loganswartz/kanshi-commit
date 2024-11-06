@@ -50,8 +50,9 @@ generated config is automatically saved to a file. By default, the filename will
 look like `<profile-name><suffix>`, where `<profile-name>` is whatever name was
 passed to `kanshi-commit`, and `<suffix>` defaults to `.conf` (configurable via
 the `--suffix` flag). This file is then placed in the appropriate config
-directory, which defaults to `$XDG_CONFIG_HOME/kanshi/config.d/` (configurable
-via `--config-dir`).
+directory, which is usually `$XDG_CONFIG_HOME/kanshi/config.d/` (this is
+configurable via `--config-dir`). You can also inspect the path that a profile
+would be saved to using the `--location` flag.
 
 If a config already exists at the save location when using `--save`,
 `kanshi-commit` will default to throwing an error and aborting, rather than
@@ -70,6 +71,15 @@ kanshi-commit my-config
 ```
 
 ```bash
+# read the current configuration from a file
+kanshi-commit my-config --from-file ~/configuration.json
+# reading from stdin is also possible
+swaymsg -t get_outputs --raw | kanshi-commit my-config --from-file -
+# if --from-file is not specified, kanshi-commit attempts to run `swaymsg -t
+# get_outputs --raw` and will use that configuration
+```
+
+```bash
 # save to `$XDG_CONFIG_HOME/kanshi/config.d/my-config.conf`, overwriting if it
 # already exists
 kanshi-commit my-config --save --force
@@ -83,4 +93,16 @@ kanshi-commit my-config --save --force --suffix ""
 ```bash
 # save to `/etc/kanshi/my-config.kanshi`, with no overwriting
 kanshi-commit my-config --save --suffix ".kanshi" --config-dir "/etc/kanshi/"
+```
+
+```bash
+# show where the config would be saved if --save were used
+kanshi-commit my-config --location
+
+# this flag also works with any other flags that affect the save location
+kanshi-commit my-config --location --suffix ".kanshi" --config-dir "/etc/kanshi/"
+
+# this does NOT save the config, as --location takes precedence and turns --save
+# into a no-op
+kanshi-commit my-config --location --save
 ```
