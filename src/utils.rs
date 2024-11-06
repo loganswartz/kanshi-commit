@@ -5,3 +5,22 @@ pub fn indent(s: &str, level: usize) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_indent() {
+        let input = "foo\nbar\nbaz";
+        let expected = "    foo\n    bar\n    baz";
+        assert_eq!(indent(input, 1), expected);
+    }
+
+    #[test]
+    fn test_multiple_indent() {
+        let input = "foo\nbar\nbaz";
+        let expected = "        foo\n        bar\n        baz";
+        assert_eq!(indent(input, 2), expected);
+    }
+}

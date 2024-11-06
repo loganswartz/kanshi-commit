@@ -6,6 +6,34 @@ use serde::Deserialize;
 
 use crate::{config::get_configuration, output::Profile};
 
+/// A wrapper around a `Option<PathBuf>` that implements `From<&str>` and `Display` so that Clap is
+/// happy.
+#[derive(Debug, Clone, Deserialize)]
+struct ClapPath(Option<PathBuf>);
+
+impl Deref for ClapPath {
+    type Target = Option<PathBuf>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<&str> for ClapPath {
+    fn from(s: &str) -> Self {
+        ClapPath(Some(PathBuf::from(s)))
+    }
+}
+
+impl fmt::Display for ClapPath {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.0 {
+            Some(path) => write!(f, "{}", path.display()),
+            None => write!(f, "None"),
+        }
+    }
+}
+
 #[derive(Parser)]
 struct Args {
     /// The name of the new profile.
@@ -40,34 +68,6 @@ struct Args {
     /// The profile will not be saved if this flag is used.
     #[clap(short, long)]
     location: bool,
-}
-
-/// A wrapper around a `Option<PathBuf>` that implements `From<&str>` and `Display` so that Clap is
-/// happy.
-#[derive(Debug, Clone, Deserialize)]
-struct ClapPath(Option<PathBuf>);
-
-impl Deref for ClapPath {
-    type Target = Option<PathBuf>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<&str> for ClapPath {
-    fn from(s: &str) -> Self {
-        ClapPath(Some(PathBuf::from(s)))
-    }
-}
-
-impl fmt::Display for ClapPath {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &self.0 {
-            Some(path) => write!(f, "{}", path.display()),
-            None => write!(f, "None"),
-        }
-    }
 }
 
 /// Entrypoint for the CLI.

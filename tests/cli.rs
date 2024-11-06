@@ -36,10 +36,12 @@ fn profile_saved_to_correct_location() {
     let profile = "test-profile";
     let (mut cmd, tmpdir) = make_cmd();
 
+    let expected_path = tmpdir.path().join(DEFAULT_SUBPATH).join(format!("{}{}", profile, ".conf"));
+    assert!(std::fs::metadata(&expected_path).is_err(), "file already exists");
+
     let result = cmd.arg(profile).arg("--from-file").arg(INPUT_DATA_DIR.join("no_outputs.json")).arg("--save").output().expect("command should be runnable");
 
-    let expected_path = tmpdir.path().join(DEFAULT_SUBPATH).join(format!("{}{}", profile, ".conf"));
-    assert!(std::fs::metadata(expected_path).is_ok());
+    assert!(std::fs::metadata(&expected_path).is_ok(), "file was not created");
     assert!(result.status.success());
 }
 
@@ -49,10 +51,27 @@ fn can_override_the_config_dir() {
     let (mut cmd, tmpdir) = make_cmd();
     let overridden_dir = tmpdir.child("overridden");
 
+    let expected_path = overridden_dir.path().join(format!("{}{}", profile, ".conf"));
+    assert!(std::fs::metadata(&expected_path).is_err(), "file already exists");
+
     let result = cmd.arg(profile).arg("--from-file").arg(INPUT_DATA_DIR.join("no_outputs.json")).arg("--config-dir").arg(overridden_dir.path()).arg("--save").output().expect("command should be runnable");
 
-    let expected_path = overridden_dir.path().join(format!("{}{}", profile, ".conf"));
-    assert!(std::fs::metadata(expected_path).is_ok());
+    assert!(std::fs::metadata(&expected_path).is_ok(), "file was not created");
+    assert!(result.status.success());
+}
+
+#[test]
+fn creates_config_dir_if_it_does_not_exist() {
+    let profile = "test-profile";
+    let (mut cmd, tmpdir) = make_cmd();
+    let non_existent_dir = tmpdir.child("non-existent");
+
+    let expected_path = non_existent_dir.path().join(format!("{}{}", profile, ".conf"));
+    assert!(std::fs::metadata(&expected_path).is_err(), "file already exists");
+
+    let result = cmd.arg(profile).arg("--from-file").arg(INPUT_DATA_DIR.join("no_outputs.json")).arg("--config-dir").arg(non_existent_dir.path()).arg("--save").output().expect("command should be runnable");
+
+    assert!(std::fs::metadata(&expected_path).is_ok(), "file was not created");
     assert!(result.status.success());
 }
 

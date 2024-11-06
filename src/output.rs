@@ -206,3 +206,59 @@ pub struct OutputMode {
     pub refresh: usize,
     pub picture_aspect_ratio: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uses_unstable_name_for_embedded_display() {
+        let output = InactiveOutput {
+            name: String::from("eDP-1"),
+            r#type: String::from("output"),
+            primary: false,
+            make: String::from("Unknown"),
+            model: String::from("Unknown"),
+            serial: String::from("Unknown"),
+            modes: vec![],
+            active: false,
+            rect: OutputRect { x: 0, y: 0, width: 1920, height: 1080 },
+        };
+
+        assert_eq!(output.display_name(), "eDP-1");
+    }
+
+    #[test]
+    fn uses_stable_name_for_external_display() {
+        let output = InactiveOutput {
+            name: String::from("DP-1"),
+            r#type: String::from("output"),
+            primary: false,
+            make: String::from("Dell"),
+            model: String::from("U2415"),
+            serial: String::from("ABC123"),
+            modes: vec![],
+            active: false,
+            rect: OutputRect { x: 0, y: 0, width: 1920, height: 1080 },
+        };
+
+        assert_eq!(output.display_name(), "Dell U2415 ABC123");
+    }
+
+    #[test]
+    fn stable_name_is_correctly_formatted() {
+        let output = InactiveOutput {
+            name: String::from("DP-1"),
+            r#type: String::from("output"),
+            primary: false,
+            make: String::from("Dell"),
+            model: String::from("U2415"),
+            serial: String::from("ABC123"),
+            modes: vec![],
+            active: false,
+            rect: OutputRect { x: 0, y: 0, width: 1920, height: 1080 },
+        };
+
+        assert_eq!(output.stable_identifier(), "Dell U2415 ABC123");
+    }
+}
